@@ -26,16 +26,21 @@ export async function fetchDailyReach(config, dateRange, fetchImpl = fetch) {
   const rawRows = await fetchInsightRows(
     config,
     dateRange,
-    ["ad_name", "reach", "date_start"],
+    ["ad_name", "reach", "actions", "date_start"],
     fetchImpl,
     "1"
   );
 
-  return filterInsightsByAdName(rawRows, config.adNameContains).map((row) => ({
-    date: typeof row.date_start === "string" ? row.date_start : "",
-    ad_name: typeof row.ad_name === "string" ? row.ad_name : "",
-    reach: toNonNegativeNumber(row.reach)
-  }));
+  return filterInsightsByAdName(rawRows, config.adNameContains).map((row) => {
+    const safeRow = sanitizeInsightRow(row);
+    return {
+      date: typeof row.date_start === "string" ? row.date_start : "",
+      ad_name: safeRow.ad_name,
+      reach: safeRow.reach,
+      engagements: safeRow.engagements,
+      messages: safeRow.messages
+    };
+  });
 }
 
 async function fetchInsightRows(config, dateRange, fields, fetchImpl, timeIncrement = "") {
@@ -87,11 +92,6 @@ async function fetchInsightRows(config, dateRange, fields, fetchImpl, timeIncrem
   }
 
   return rawRows;
-}
-
-function toNonNegativeNumber(value) {
-  const number = Number(value);
-  return Number.isFinite(number) && number >= 0 ? number : 0;
 }
 
 async function fetchAdCreativeDetails(config, rows, fetchImpl) {
