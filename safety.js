@@ -7,7 +7,7 @@ export const SAFE_META_FIELDS = Object.freeze([
   "actions"
 ]);
 
-export function sanitizeInsightRow(row, imageUrl = "") {
+export function sanitizeInsightRow(row, imageUrl = "", postUrl = "") {
   if (!row || typeof row !== "object" || Array.isArray(row)) {
     return emptyInsight();
   }
@@ -18,7 +18,8 @@ export function sanitizeInsightRow(row, imageUrl = "") {
     clicks: toNonNegativeNumber(row.clicks),
     reactions: getActionValue(row.actions, "post_reaction"),
     engagements: getActionValue(row.actions, "post_engagement"),
-    image_url: typeof imageUrl === "string" ? imageUrl : ""
+    image_url: typeof imageUrl === "string" ? imageUrl : "",
+    post_url: typeof postUrl === "string" ? postUrl : ""
   };
 }
 
@@ -58,7 +59,8 @@ function emptyInsight() {
     clicks: 0,
     reactions: 0,
     engagements: 0,
-    image_url: ""
+    image_url: "",
+    post_url: ""
   };
 }
 

@@ -50,21 +50,28 @@ export async function fetchSafeInsights(config, dateRange, fetchImpl = fetch) {
   }
 
   const filteredRows = filterInsightsByAdName(rawRows, config.adNameContains);
-  const thumbnails = await fetchAdThumbnails(config, filteredRows, fetchImpl);
+  const creativeDetails = await fetchAdCreativeDetails(config, filteredRows, fetchImpl);
   return filteredRows.map((row) =>
-    sanitizeInsightRow(row, thumbnails.get(String(row.ad_id)) || "")
+    sanitizeInsightRow(
+      row,
+      creativeDetails.get(String(row.ad_id))?.imageUrl || "",
+      creativeDetails.get(String(row.ad_id))?.postUrl || ""
+    )
   );
 }
 
-async function fetchAdThumbnails(config, rows, fetchImpl) {
+async function fetchAdCreativeDetails(config, rows, fetchImpl) {
   const adIds = [...new Set(rows.map((row) => String(row.ad_id || "")).filter(Boolean))];
-  const thumbnails = new Map();
+  const details = new Map();
 
   for (let index = 0; index < adIds.length; index += 50) {
     const ids = adIds.slice(index, index + 50);
     const url = new URL(`https://graph.facebook.com/${config.metaGraphVersion}/`);
     url.searchParams.set("ids", ids.join(","));
-    url.searchParams.set("fields", "creative{thumbnail_url}");
+    url.searchParams.set(
+      "fields",
+      "creative{thumbnail_url,instagram_permalink_url,effective_object_story_id}"
+    );
     url.searchParams.set("access_token", config.metaAccessToken);
 
     try {
@@ -76,15 +83,35 @@ async function fetchAdThumbnails(config, rows, fetchImpl) {
       if (!response.ok || payload.error) continue;
 
       for (const id of ids) {
-        const thumbnailUrl = payload[id]?.creative?.thumbnail_url;
-        if (typeof thumbnailUrl === "string") thumbnails.set(id, thumbnailUrl);
+        const creative = payload[id]?.creative;
+        if (!creative) continue;
+        details.set(id, {
+          imageUrl: typeof creative.thumbnail_url === "string" ? creative.thumbnail_url : "",
+          postUrl: getPostUrl(creative)
+        });
       }
     } catch {
       // Images are optional. Reporting data remains available if thumbnails fail.
     }
   }
 
-  return thumbnails;
+  return details;
+}
+
+function getPostUrl(creative) {
+  if (typeof creative.instagram_permalink_url === "string") {
+    return creative.instagram_permalink_url;
+  }
+
+  const storyId = creative.effective_object_story_id;
+  if (typeof storyId !== "string" || !storyId) return "";
+  const separator = storyId.indexOf("_");
+  if (separator > 0 && separator < storyId.length - 1) {
+    const pageId = storyId.slice(0, separator);
+    const postId = storyId.slice(separator + 1);
+    return `https://www.facebook.com/${pageId}/posts/${postId}`;
+  }
+  return `https://www.facebook.com/${storyId}`;
 }
 
 export class MetaApiError extends Error {
