@@ -42,7 +42,7 @@ export function sanitizeInsightRow(
     post_url: typeof postUrl === "string" ? postUrl : "",
     page_name: typeof pageName === "string" ? pageName : "",
     result: result.value,
-    result_type: result.type
+    result_type: "Lượt truy cập trang cá nhân"
   };
 }
 
