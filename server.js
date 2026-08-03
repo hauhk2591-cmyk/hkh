@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { loadConfig } from "./config.js";
-import { fetchSafeInsights, MetaApiError } from "./meta.js";
+import { fetchDailyReach, fetchSafeInsights, MetaApiError } from "./meta.js";
 import { ClientInputError, parseDateRange } from "./safety.js";
 
 const config = loadConfig();
@@ -26,7 +26,9 @@ const server = createServer(async (req, res) => {
     return sendJson(res, 200, { ok: true });
   }
 
-  if (req.method !== "GET" || requestUrl.pathname !== "/v1/meta/insights") {
+  const isSummary = requestUrl.pathname === "/v1/meta/insights";
+  const isDailyReach = requestUrl.pathname === "/v1/meta/insights/daily-reach";
+  if (req.method !== "GET" || (!isSummary && !isDailyReach)) {
     return sendJson(res, 404, { error: "Not found" });
   }
 
@@ -41,10 +43,17 @@ const server = createServer(async (req, res) => {
 
   try {
     const dateRange = parseDateRange(requestUrl.searchParams, config.maxDateRangeDays);
-    const data = await fetchSafeInsights(config, dateRange);
+    const data = isDailyReach
+      ? await fetchDailyReach(config, dateRange)
+      : await fetchSafeInsights(config, dateRange);
     return sendJson(res, 200, {
       data,
-      meta: { since: dateRange.since, until: dateRange.until, level: "ad" }
+      meta: {
+        since: dateRange.since,
+        until: dateRange.until,
+        level: "ad",
+        granularity: isDailyReach ? "daily" : "summary"
+      }
     });
   } catch (error) {
     if (error instanceof ClientInputError) {
