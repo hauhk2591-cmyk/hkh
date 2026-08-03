@@ -80,32 +80,12 @@ function getFirstActionValue(actions, actionTypes) {
 
 function getResult(row, optimizationGoal) {
   const actions = row.actions;
-  const candidates = [
-    { types: ["onsite_conversion.messaging_conversation_started_7d", "messaging_conversation_started_7d", "onsite_conversion.total_messaging_connection"], label: "Cuộc trò chuyện bắt đầu" },
-    { types: ["onsite_conversion.instagram_follow", "instagram_follow", "follow", "like"], label: "Lượt theo dõi" },
-    { types: ["lead", "onsite_conversion.lead_grouped"], label: "Khách hàng tiềm năng" },
-    { types: ["purchase", "omni_purchase"], label: "Lượt mua hàng" },
-    { types: ["landing_page_view"], label: "Lượt xem trang đích" },
-    { types: ["link_click"], label: "Lượt nhấp liên kết" },
-    { types: ["post_engagement"], label: "Lượt tương tác" },
-    { types: ["video_view"], label: "Lượt xem video" }
-  ];
-
-  const goal = String(optimizationGoal || "").toUpperCase();
-  const priority = candidates.slice().sort((left, right) => {
-    const leftMatch = left.types.some((type) => goal.includes(type.toUpperCase().replace(/^ONSITE_CONVERSION\./, "")));
-    const rightMatch = right.types.some((type) => goal.includes(type.toUpperCase().replace(/^ONSITE_CONVERSION\./, "")));
-    return Number(rightMatch) - Number(leftMatch);
-  });
-
-  for (const candidate of priority) {
-    const value = getFirstActionValue(actions, candidate.types);
-    if (value > 0) return { value, type: candidate.label };
-  }
-
-  if (goal.includes("REACH")) return { value: toNonNegativeNumber(row.reach), type: "Tiếp cận" };
-  if (goal.includes("IMPRESSION")) return { value: toNonNegativeNumber(row.impressions), type: "Lượt hiển thị" };
-  return { value: 0, type: goal ? `Mục tiêu: ${goal}` : "Chưa xác định" };
+  const value = getFirstActionValue(actions, [
+    "onsite_conversion.instagram_profile_visit",
+    "instagram_profile_visit",
+    "profile_visit"
+  ]);
+  return { value, type: "Lượt truy cập trang cá nhân" };
 }
 
 function toNonNegativeNumber(value) {
