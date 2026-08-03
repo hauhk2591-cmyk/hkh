@@ -55,7 +55,9 @@ export async function fetchSafeInsights(config, dateRange, fetchImpl = fetch) {
     sanitizeInsightRow(
       row,
       creativeDetails.get(String(row.ad_id))?.imageUrl || "",
-      creativeDetails.get(String(row.ad_id))?.postUrl || ""
+      creativeDetails.get(String(row.ad_id))?.postUrl || "",
+      creativeDetails.get(String(row.ad_id))?.pageName || "",
+      creativeDetails.get(String(row.ad_id))?.optimizationGoal || ""
     )
   );
 }
@@ -70,7 +72,7 @@ async function fetchAdCreativeDetails(config, rows, fetchImpl) {
     url.searchParams.set("ids", ids.join(","));
     url.searchParams.set(
       "fields",
-      "creative{thumbnail_url,instagram_permalink_url,effective_object_story_id}"
+      "creative{thumbnail_url,instagram_permalink_url,effective_object_story_id,object_story_spec},campaign{objective},adset{optimization_goal}"
     );
     url.searchParams.set("access_token", config.metaAccessToken);
 
@@ -87,7 +89,11 @@ async function fetchAdCreativeDetails(config, rows, fetchImpl) {
         if (!creative) continue;
         details.set(id, {
           imageUrl: typeof creative.thumbnail_url === "string" ? creative.thumbnail_url : "",
-          postUrl: getPostUrl(creative)
+          postUrl: getPostUrl(creative),
+          pageId: getPageId(creative),
+          pageName: "",
+          objective: typeof payload[id]?.campaign?.objective === "string" ? payload[id].campaign.objective : "",
+          optimizationGoal: typeof payload[id]?.adset?.optimization_goal === "string" ? payload[id].adset.optimization_goal : ""
         });
       }
     } catch {
@@ -95,7 +101,47 @@ async function fetchAdCreativeDetails(config, rows, fetchImpl) {
     }
   }
 
+  const pageIds = [...new Set([...details.values()].map((item) => item.pageId).filter(Boolean))];
+  const pageNames = await fetchPageNames(config, pageIds, fetchImpl);
+  for (const detail of details.values()) {
+    detail.pageName = pageNames.get(detail.pageId) || "";
+  }
+
   return details;
+}
+
+async function fetchPageNames(config, pageIds, fetchImpl) {
+  const names = new Map();
+  for (let index = 0; index < pageIds.length; index += 50) {
+    const ids = pageIds.slice(index, index + 50);
+    const url = new URL(`https://graph.facebook.com/${config.metaGraphVersion}/`);
+    url.searchParams.set("ids", ids.join(","));
+    url.searchParams.set("fields", "name");
+    url.searchParams.set("access_token", config.metaAccessToken);
+    try {
+      const response = await fetchImpl(url, {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(config.metaRequestTimeoutMs)
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.error) continue;
+      for (const id of ids) {
+        if (typeof payload[id]?.name === "string") names.set(id, payload[id].name);
+      }
+    } catch {
+      // Page identity is optional and does not block reporting data.
+    }
+  }
+  return names;
+}
+
+function getPageId(creative) {
+  const specPageId = creative.object_story_spec?.page_id;
+  if (specPageId !== undefined && specPageId !== null) return String(specPageId);
+  const storyId = creative.effective_object_story_id;
+  if (typeof storyId !== "string") return "";
+  const separator = storyId.indexOf("_");
+  return separator > 0 ? storyId.slice(0, separator) : "";
 }
 
 function getPostUrl(creative) {

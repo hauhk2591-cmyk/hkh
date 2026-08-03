@@ -8,11 +8,18 @@ export const SAFE_META_FIELDS = Object.freeze([
   "actions"
 ]);
 
-export function sanitizeInsightRow(row, imageUrl = "", postUrl = "") {
+export function sanitizeInsightRow(
+  row,
+  imageUrl = "",
+  postUrl = "",
+  pageName = "",
+  optimizationGoal = ""
+) {
   if (!row || typeof row !== "object" || Array.isArray(row)) {
     return emptyInsight();
   }
 
+  const result = getResult(row, optimizationGoal);
   return {
     ad_name: typeof row.ad_name === "string" ? row.ad_name : "",
     impressions: toNonNegativeNumber(row.impressions),
@@ -32,7 +39,10 @@ export function sanitizeInsightRow(row, imageUrl = "", postUrl = "") {
       "onsite_conversion.total_messaging_connection"
     ]),
     image_url: typeof imageUrl === "string" ? imageUrl : "",
-    post_url: typeof postUrl === "string" ? postUrl : ""
+    post_url: typeof postUrl === "string" ? postUrl : "",
+    page_name: typeof pageName === "string" ? pageName : "",
+    result: result.value,
+    result_type: result.type
   };
 }
 
@@ -68,6 +78,36 @@ function getFirstActionValue(actions, actionTypes) {
   return 0;
 }
 
+function getResult(row, optimizationGoal) {
+  const actions = row.actions;
+  const candidates = [
+    { types: ["onsite_conversion.messaging_conversation_started_7d", "messaging_conversation_started_7d", "onsite_conversion.total_messaging_connection"], label: "Cuộc trò chuyện bắt đầu" },
+    { types: ["onsite_conversion.instagram_follow", "instagram_follow", "follow", "like"], label: "Lượt theo dõi" },
+    { types: ["lead", "onsite_conversion.lead_grouped"], label: "Khách hàng tiềm năng" },
+    { types: ["purchase", "omni_purchase"], label: "Lượt mua hàng" },
+    { types: ["landing_page_view"], label: "Lượt xem trang đích" },
+    { types: ["link_click"], label: "Lượt nhấp liên kết" },
+    { types: ["post_engagement"], label: "Lượt tương tác" },
+    { types: ["video_view"], label: "Lượt xem video" }
+  ];
+
+  const goal = String(optimizationGoal || "").toUpperCase();
+  const priority = candidates.slice().sort((left, right) => {
+    const leftMatch = left.types.some((type) => goal.includes(type.toUpperCase().replace(/^ONSITE_CONVERSION\./, "")));
+    const rightMatch = right.types.some((type) => goal.includes(type.toUpperCase().replace(/^ONSITE_CONVERSION\./, "")));
+    return Number(rightMatch) - Number(leftMatch);
+  });
+
+  for (const candidate of priority) {
+    const value = getFirstActionValue(actions, candidate.types);
+    if (value > 0) return { value, type: candidate.label };
+  }
+
+  if (goal.includes("REACH")) return { value: toNonNegativeNumber(row.reach), type: "Tiếp cận" };
+  if (goal.includes("IMPRESSION")) return { value: toNonNegativeNumber(row.impressions), type: "Lượt hiển thị" };
+  return { value: 0, type: goal ? `Mục tiêu: ${goal}` : "Chưa xác định" };
+}
+
 function toNonNegativeNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : 0;
@@ -84,7 +124,10 @@ function emptyInsight() {
     follows: 0,
     messages: 0,
     image_url: "",
-    post_url: ""
+    post_url: "",
+    page_name: "",
+    result: 0,
+    result_type: "Chưa xác định"
   };
 }
 
