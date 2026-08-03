@@ -3,6 +3,7 @@ export const SAFE_META_FIELDS = Object.freeze([
   "ad_id",
   "ad_name",
   "impressions",
+  "reach",
   "clicks",
   "actions"
 ]);
@@ -15,9 +16,21 @@ export function sanitizeInsightRow(row, imageUrl = "", postUrl = "") {
   return {
     ad_name: typeof row.ad_name === "string" ? row.ad_name : "",
     impressions: toNonNegativeNumber(row.impressions),
+    reach: toNonNegativeNumber(row.reach),
     clicks: toNonNegativeNumber(row.clicks),
     reactions: getActionValue(row.actions, "post_reaction"),
     engagements: getActionValue(row.actions, "post_engagement"),
+    follows: getFirstActionValue(row.actions, [
+      "onsite_conversion.instagram_follow",
+      "instagram_follow",
+      "follow",
+      "like"
+    ]),
+    messages: getFirstActionValue(row.actions, [
+      "onsite_conversion.messaging_conversation_started_7d",
+      "messaging_conversation_started_7d",
+      "onsite_conversion.total_messaging_connection"
+    ]),
     image_url: typeof imageUrl === "string" ? imageUrl : "",
     post_url: typeof postUrl === "string" ? postUrl : ""
   };
@@ -47,6 +60,14 @@ function getActionValue(actions, actionType) {
   }, 0);
 }
 
+function getFirstActionValue(actions, actionTypes) {
+  for (const actionType of actionTypes) {
+    const value = getActionValue(actions, actionType);
+    if (value > 0) return value;
+  }
+  return 0;
+}
+
 function toNonNegativeNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : 0;
@@ -56,9 +77,12 @@ function emptyInsight() {
   return {
     ad_name: "",
     impressions: 0,
+    reach: 0,
     clicks: 0,
     reactions: 0,
     engagements: 0,
+    follows: 0,
+    messages: 0,
     image_url: "",
     post_url: ""
   };
