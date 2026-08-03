@@ -3,6 +3,42 @@ import { filterInsightsByAdName, SAFE_META_FIELDS, sanitizeInsightRow } from "./
 const MAX_META_PAGES = 100;
 
 export async function fetchSafeInsights(config, dateRange, fetchImpl = fetch) {
+  const rawRows = await fetchInsightRows(
+    config,
+    dateRange,
+    SAFE_META_FIELDS,
+    fetchImpl
+  );
+
+  const filteredRows = filterInsightsByAdName(rawRows, config.adNameContains);
+  const creativeDetails = await fetchAdCreativeDetails(config, filteredRows, fetchImpl);
+  return filteredRows.map((row) =>
+    sanitizeInsightRow(
+      row,
+      creativeDetails.get(String(row.ad_id))?.imageUrl || "",
+      creativeDetails.get(String(row.ad_id))?.postUrl || "",
+      creativeDetails.get(String(row.ad_id))?.pageName || ""
+    )
+  );
+}
+
+export async function fetchDailyReach(config, dateRange, fetchImpl = fetch) {
+  const rawRows = await fetchInsightRows(
+    config,
+    dateRange,
+    ["ad_name", "reach", "date_start"],
+    fetchImpl,
+    "1"
+  );
+
+  return filterInsightsByAdName(rawRows, config.adNameContains).map((row) => ({
+    date: typeof row.date_start === "string" ? row.date_start : "",
+    ad_name: typeof row.ad_name === "string" ? row.ad_name : "",
+    reach: toNonNegativeNumber(row.reach)
+  }));
+}
+
+async function fetchInsightRows(config, dateRange, fields, fetchImpl, timeIncrement = "") {
   const firstUrl = new URL(
     `https://graph.facebook.com/${config.metaGraphVersion}` +
       `/act_${config.metaAdAccountId}/insights`
@@ -10,9 +46,10 @@ export async function fetchSafeInsights(config, dateRange, fetchImpl = fetch) {
 
   firstUrl.searchParams.set("access_token", config.metaAccessToken);
   firstUrl.searchParams.set("level", "ad");
-  firstUrl.searchParams.set("fields", SAFE_META_FIELDS.join(","));
+  firstUrl.searchParams.set("fields", fields.join(","));
   firstUrl.searchParams.set("limit", "500");
   firstUrl.searchParams.set("time_range", JSON.stringify(dateRange));
+  if (timeIncrement) firstUrl.searchParams.set("time_increment", timeIncrement);
 
   const rawRows = [];
   let nextUrl = firstUrl.toString();
@@ -49,16 +86,12 @@ export async function fetchSafeInsights(config, dateRange, fetchImpl = fetch) {
     nextUrl = payload.paging?.next || "";
   }
 
-  const filteredRows = filterInsightsByAdName(rawRows, config.adNameContains);
-  const creativeDetails = await fetchAdCreativeDetails(config, filteredRows, fetchImpl);
-  return filteredRows.map((row) =>
-    sanitizeInsightRow(
-      row,
-      creativeDetails.get(String(row.ad_id))?.imageUrl || "",
-      creativeDetails.get(String(row.ad_id))?.postUrl || "",
-      creativeDetails.get(String(row.ad_id))?.pageName || ""
-    )
-  );
+  return rawRows;
+}
+
+function toNonNegativeNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : 0;
 }
 
 async function fetchAdCreativeDetails(config, rows, fetchImpl) {
