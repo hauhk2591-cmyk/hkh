@@ -1,0 +1,14 @@
+{
+  "name": "meta-ads-safe-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Read-only proxy for sharing Meta Ads performance without cost data.",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

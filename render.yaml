@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: meta-ads-safe-api
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: META_ACCESS_TOKEN
+        sync: false
+      - key: META_AD_ACCOUNT_ID
+        sync: false
+      - key: DASHBOARD_API_KEY
+        sync: false
+      - key: META_GRAPH_VERSION
+        value: v26.0
+      - key: AD_NAME_CONTAINS
+        value: Instagram
+      - key: MAX_DATE_RANGE_DAYS
+        value: "93"
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "60"
+      - key: META_REQUEST_TIMEOUT_MS
+        value: "120000"
