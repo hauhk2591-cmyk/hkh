@@ -56,8 +56,7 @@ export async function fetchSafeInsights(config, dateRange, fetchImpl = fetch) {
       row,
       creativeDetails.get(String(row.ad_id))?.imageUrl || "",
       creativeDetails.get(String(row.ad_id))?.postUrl || "",
-      creativeDetails.get(String(row.ad_id))?.pageName || "",
-      creativeDetails.get(String(row.ad_id))?.optimizationGoal || ""
+      creativeDetails.get(String(row.ad_id))?.pageName || ""
     )
   );
 }
@@ -72,7 +71,7 @@ async function fetchAdCreativeDetails(config, rows, fetchImpl) {
     url.searchParams.set("ids", ids.join(","));
     url.searchParams.set(
       "fields",
-      "creative{thumbnail_url,instagram_permalink_url,effective_object_story_id,object_story_spec},campaign{objective},adset{optimization_goal}"
+      "creative{thumbnail_url,instagram_permalink_url,effective_object_story_id,object_story_spec}"
     );
     url.searchParams.set("access_token", config.metaAccessToken);
 
@@ -91,9 +90,7 @@ async function fetchAdCreativeDetails(config, rows, fetchImpl) {
           imageUrl: typeof creative.thumbnail_url === "string" ? creative.thumbnail_url : "",
           postUrl: getPostUrl(creative),
           pageId: getPageId(creative),
-          pageName: "",
-          objective: typeof payload[id]?.campaign?.objective === "string" ? payload[id].campaign.objective : "",
-          optimizationGoal: typeof payload[id]?.adset?.optimization_goal === "string" ? payload[id].adset.optimization_goal : ""
+          pageName: ""
         });
       }
     } catch {

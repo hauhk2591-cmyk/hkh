@@ -12,14 +12,12 @@ export function sanitizeInsightRow(
   row,
   imageUrl = "",
   postUrl = "",
-  pageName = "",
-  optimizationGoal = ""
+  pageName = ""
 ) {
   if (!row || typeof row !== "object" || Array.isArray(row)) {
     return emptyInsight();
   }
 
-  const result = getResult(row, optimizationGoal);
   return {
     ad_name: typeof row.ad_name === "string" ? row.ad_name : "",
     impressions: toNonNegativeNumber(row.impressions),
@@ -41,7 +39,6 @@ export function sanitizeInsightRow(
     image_url: typeof imageUrl === "string" ? imageUrl : "",
     post_url: typeof postUrl === "string" ? postUrl : "",
     page_name: typeof pageName === "string" ? pageName : "",
-    result: result.value,
     result_type: "Lượt truy cập trang cá nhân"
   };
 }
@@ -78,16 +75,6 @@ function getFirstActionValue(actions, actionTypes) {
   return 0;
 }
 
-function getResult(row, optimizationGoal) {
-  const actions = row.actions;
-  const value = getFirstActionValue(actions, [
-    "onsite_conversion.instagram_profile_visit",
-    "instagram_profile_visit",
-    "profile_visit"
-  ]);
-  return { value, type: "Lượt truy cập trang cá nhân" };
-}
-
 function toNonNegativeNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : 0;
@@ -106,7 +93,6 @@ function emptyInsight() {
     image_url: "",
     post_url: "",
     page_name: "",
-    result: 0,
     result_type: "Chưa xác định"
   };
 }
