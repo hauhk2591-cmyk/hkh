@@ -118,20 +118,27 @@ async function fetchAdCreativeDetails(config, rows, fetchImpl, includePageNames 
         signal: AbortSignal.timeout(config.metaRequestTimeoutMs)
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload.error) continue;
-
-      for (const id of ids) {
-        const creative = payload[id]?.creative;
-        if (!creative) continue;
-        details.set(id, {
-          imageUrl: typeof creative.thumbnail_url === "string" ? creative.thumbnail_url : "",
-          postUrl: getPostUrl(creative),
-          pageId: getPageId(creative),
-          pageName: ""
+      if (!response.ok || payload.error) {
+        console.warn("Meta creative batch lookup failed", {
+          status: response.status,
+          code: payload.error?.code,
+          message: payload.error?.message
         });
+      } else {
+        for (const id of ids) storeCreativeDetail(details, id, payload[id]?.creative);
       }
-    } catch {
-      // Images are optional. Reporting data remains available if thumbnails fail.
+
+      const missingIds = ids.filter((id) => !details.has(id));
+      for (const id of missingIds) {
+        await fetchSingleAdCreativeDetail(config, id, fetchImpl, details);
+      }
+    } catch (error) {
+      console.warn("Meta creative lookup could not connect", {
+        message: error?.message || "unknown error"
+      });
+      for (const id of ids) {
+        if (!details.has(id)) await fetchSingleAdCreativeDetail(config, id, fetchImpl, details);
+      }
     }
   }
 
@@ -144,6 +151,47 @@ async function fetchAdCreativeDetails(config, rows, fetchImpl, includePageNames 
   }
 
   return details;
+}
+
+async function fetchSingleAdCreativeDetail(config, adId, fetchImpl, details) {
+  const url = new URL(`https://graph.facebook.com/${config.metaGraphVersion}/${adId}`);
+  url.searchParams.set(
+    "fields",
+    "creative{thumbnail_url,instagram_permalink_url,effective_object_story_id,object_story_spec}"
+  );
+  url.searchParams.set("access_token", config.metaAccessToken);
+  try {
+    const response = await fetchImpl(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(config.metaRequestTimeoutMs)
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.error) {
+      console.warn("Meta creative lookup failed for ad", {
+        adId,
+        status: response.status,
+        code: payload.error?.code,
+        message: payload.error?.message
+      });
+      return;
+    }
+    storeCreativeDetail(details, adId, payload.creative);
+  } catch (error) {
+    console.warn("Meta creative lookup could not connect for ad", {
+      adId,
+      message: error?.message || "unknown error"
+    });
+  }
+}
+
+function storeCreativeDetail(details, adId, creative) {
+  if (!creative) return;
+  details.set(String(adId), {
+    imageUrl: typeof creative.thumbnail_url === "string" ? creative.thumbnail_url : "",
+    postUrl: getPostUrl(creative),
+    pageId: getPageId(creative),
+    pageName: ""
+  });
 }
 
 async function fetchPageNames(config, pageIds, fetchImpl) {
