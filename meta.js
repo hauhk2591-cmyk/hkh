@@ -26,18 +26,22 @@ export async function fetchDailyReach(config, dateRange, fetchImpl = fetch) {
   const rawRows = await fetchInsightRows(
     config,
     dateRange,
-    ["ad_name", "reach", "actions", "date_start"],
+    ["ad_id", "ad_name", "reach", "actions", "date_start"],
     fetchImpl,
     "1"
   );
 
-  return filterInsightsByAdName(rawRows, config.adNameContains).map((row) => {
+  const filteredRows = filterInsightsByAdName(rawRows, config.adNameContains);
+  const creativeDetails = await fetchAdCreativeDetails(config, filteredRows, fetchImpl, false);
+  return filteredRows.map((row) => {
     const safeRow = sanitizeInsightRow(row);
     return {
       date: typeof row.date_start === "string" ? row.date_start : "",
       ad_name: safeRow.ad_name,
+      post_url: creativeDetails.get(String(row.ad_id))?.postUrl || "",
       reach: safeRow.reach,
       engagements: safeRow.engagements,
+      follows: safeRow.follows,
       messages: safeRow.messages
     };
   });
@@ -94,7 +98,7 @@ async function fetchInsightRows(config, dateRange, fields, fetchImpl, timeIncrem
   return rawRows;
 }
 
-async function fetchAdCreativeDetails(config, rows, fetchImpl) {
+async function fetchAdCreativeDetails(config, rows, fetchImpl, includePageNames = true) {
   const adIds = [...new Set(rows.map((row) => String(row.ad_id || "")).filter(Boolean))];
   const details = new Map();
 
@@ -131,10 +135,12 @@ async function fetchAdCreativeDetails(config, rows, fetchImpl) {
     }
   }
 
-  const pageIds = [...new Set([...details.values()].map((item) => item.pageId).filter(Boolean))];
-  const pageNames = await fetchPageNames(config, pageIds, fetchImpl);
-  for (const detail of details.values()) {
-    detail.pageName = pageNames.get(detail.pageId) || "";
+  if (includePageNames) {
+    const pageIds = [...new Set([...details.values()].map((item) => item.pageId).filter(Boolean))];
+    const pageNames = await fetchPageNames(config, pageIds, fetchImpl);
+    for (const detail of details.values()) {
+      detail.pageName = pageNames.get(detail.pageId) || "";
+    }
   }
 
   return details;
